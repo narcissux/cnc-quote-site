@@ -13,6 +13,16 @@ export interface ParsedStl {
   normals: Float32Array;
 }
 
+/** User-facing Chinese message for empty / unparseable STL. */
+export const STL_EMPTY_OR_INVALID_MSG = "文件为空或无法解析（无有效网格）";
+
+export class StlParseError extends Error {
+  constructor(message: string = STL_EMPTY_OR_INVALID_MSG) {
+    super(message);
+    this.name = "StlParseError";
+  }
+}
+
 function isAsciiStl(buffer: ArrayBuffer): boolean {
   const bytes = new Uint8Array(buffer);
   // Binary STL: 80-byte header + uint32 tri count + 50*n bytes
@@ -29,8 +39,23 @@ function isAsciiStl(buffer: ArrayBuffer): boolean {
 }
 
 function parseBinary(buffer: ArrayBuffer): { positions: Float32Array; normals: Float32Array; n: number } {
+  if (buffer.byteLength < 84) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
   const view = new DataView(buffer);
   const n = view.getUint32(80, true);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
+  if (n === 0) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
+  const needed = 84 + n * 50;
+  if (buffer.byteLength < needed) {
+    // Declared triangle count exceeds file size → empty/corrupt
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
+
   const positions = new Float32Array(n * 9);
   const normals = new Float32Array(n * 9);
   let offset = 84;
@@ -55,12 +80,20 @@ function parseBinary(buffer: ArrayBuffer): { positions: Float32Array; normals: F
 }
 
 function parseAscii(text: string): { positions: Float32Array; normals: Float32Array; n: number } {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
   const facets = text.split(/facet\s+normal/i).slice(1);
   const n = facets.length;
+  if (n === 0) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
   const positions = new Float32Array(n * 9);
   const normals = new Float32Array(n * 9);
   const floatRe = /[-+]?(?:\d+\.\d*|\.\d+|\d+)(?:[eE][-+]?\d+)?/g;
 
+  let filled = 0;
   for (let i = 0; i < n; i++) {
     const chunk = facets[i];
     floatRe.lastIndex = 0;
@@ -73,7 +106,7 @@ function parseAscii(text: string): { positions: Float32Array; normals: Float32Ar
     if (nums.length < 12) continue;
     const nx = nums[0], ny = nums[1], nz = nums[2];
     for (let v = 0; v < 3; v++) {
-      const base = i * 9 + v * 3;
+      const base = filled * 9 + v * 3;
       positions[base] = nums[3 + v * 3];
       positions[base + 1] = nums[4 + v * 3];
       positions[base + 2] = nums[5 + v * 3];
@@ -81,8 +114,16 @@ function parseAscii(text: string): { positions: Float32Array; normals: Float32Ar
       normals[base + 1] = ny;
       normals[base + 2] = nz;
     }
+    filled++;
   }
-  return { positions, normals, n };
+  if (filled === 0) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
+  return {
+    positions: positions.subarray(0, filled * 9),
+    normals: normals.subarray(0, filled * 9),
+    n: filled,
+  };
 }
 
 /** Signed volume contribution of a triangle (origin-based). */
@@ -139,20 +180,37 @@ export function computeMetrics(positions: Float32Array, triangleCount: number): 
 }
 
 export async function parseStlFile(file: File): Promise<ParsedStl> {
+  if (!file || file.size === 0) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
   const buffer = await file.arrayBuffer();
   return parseStlBuffer(buffer);
 }
 
 export function parseStlBuffer(buffer: ArrayBuffer): ParsedStl {
+  if (!buffer || buffer.byteLength === 0) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
+
   let positions: Float32Array;
   let normals: Float32Array;
   let n: number;
 
-  if (isAsciiStl(buffer)) {
-    const text = new TextDecoder().decode(buffer);
-    ({ positions, normals, n } = parseAscii(text));
-  } else {
-    ({ positions, normals, n } = parseBinary(buffer));
+  try {
+    if (isAsciiStl(buffer)) {
+      const text = new TextDecoder().decode(buffer);
+      ({ positions, normals, n } = parseAscii(text));
+    } else {
+      ({ positions, normals, n } = parseBinary(buffer));
+    }
+  } catch (e) {
+    if (e instanceof StlParseError) throw e;
+    // DataView RangeError / other low-level parse failures → friendly message
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
+  }
+
+  if (n === 0 || positions.length === 0) {
+    throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
   }
 
   const metrics = computeMetrics(positions, n);

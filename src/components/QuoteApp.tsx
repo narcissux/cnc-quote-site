@@ -54,7 +54,7 @@ export function QuoteApp() {
     try {
       const parsed = await parseStlFile(file);
       if (parsed.metrics.triangleCount === 0) {
-        throw new Error("未能解析到三角面，请检查 STL 文件");
+        throw new Error("文件为空或无法解析（无有效网格）");
       }
       setFileName(file.name);
       setMetrics(parsed.metrics);
