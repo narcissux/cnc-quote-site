@@ -1,0 +1,12 @@
+/node_modules
+/.next/
+/out/
+/build
+.DS_Store
+*.pem
+*-debug.log*
+yarn-error.log*
+/coverage
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
