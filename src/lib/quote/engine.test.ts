@@ -107,3 +107,22 @@ describe("computeQuote per_piece", () => {
     expect(qHuge.unitPriceCny * 1000).toBeCloseTo(qHuge.totalPriceCny, -1);
   });
 });
+
+describe("tolerance pricing monotonicity", () => {
+  it("precision unit/total price strictly greater than standard on tiny parts", () => {
+    // Tiny cube: raw cut << MIN_MACHINE_HOURS; billable = max(MIN, base) * tolF
+    const std = computeQuote(baseInput({ tolerance: "standard", mode: "hourly" }));
+    const prec = computeQuote(baseInput({ tolerance: "precision", mode: "hourly" }));
+    expect(prec.machineHours).toBeGreaterThan(std.machineHours);
+    expect(prec.unitPriceCny).toBeGreaterThan(std.unitPriceCny);
+    expect(prec.totalPriceCny).toBeGreaterThan(std.totalPriceCny);
+  });
+
+  it("precision unit/total price strictly greater in per_piece mode too", () => {
+    const std = computeQuote(baseInput({ tolerance: "standard", mode: "per_piece" }));
+    const prec = computeQuote(baseInput({ tolerance: "precision", mode: "per_piece" }));
+    expect(prec.unitPriceCny).toBeGreaterThan(std.unitPriceCny);
+    expect(prec.totalPriceCny).toBeGreaterThan(std.totalPriceCny);
+    expect(prec.machineHours).toBeGreaterThan(std.machineHours);
+  });
+});

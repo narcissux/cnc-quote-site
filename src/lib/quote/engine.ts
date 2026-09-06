@@ -41,8 +41,13 @@ export function bboxVolumeMm3(g: GeometryMetrics): number {
 /**
  * Approximate cut time in minutes from removed stock.
  * Units: volume mm³ → cm³ (/1000); MRR in cm³/min.
+ * When includeTolerance is false, omits TOLERANCE_FACTOR so callers can apply
+ * MIN_MACHINE_HOURS first, then multiply by tolerance (monotonic for tiny parts).
  */
-export function estimateCutTimeMin(input: QuoteInput): number {
+export function estimateCutTimeMin(
+  input: QuoteInput,
+  includeTolerance: boolean = true,
+): number {
   const mat = MATERIALS[input.materialId];
   const bbox = bboxVolumeMm3(input.geometry);
   const stockMm3 = bbox * STOCK_FACTOR;
@@ -50,7 +55,7 @@ export function estimateCutTimeMin(input: QuoteInput): number {
   const removedCm3 = removedMm3 / 1000;
 
   const finishF = FINISH_FACTOR[input.finish];
-  const tolF = TOLERANCE_FACTOR[input.tolerance];
+  const tolF = includeTolerance ? TOLERANCE_FACTOR[input.tolerance] : 1;
 
   if (mat.mrrCm3PerMin <= 0) return 0;
 
@@ -78,12 +83,15 @@ function leadTimeDays(totalMachineHours: number, qty: number): number {
 export function computeQuote(input: QuoteInput): QuoteResult {
   const qty = Math.min(1000, Math.max(1, Math.floor(input.quantity)));
   const mat = MATERIALS[input.materialId];
-  const cutMin = estimateCutTimeMin({ ...input, quantity: qty });
-  const machineHoursPerPiece = Math.max(cutMin / 60, MIN_MACHINE_HOURS / Math.max(qty, 1));
-  // Prefer piece hours from cut time; enforce a job-level floor later
-  const rawHoursPerPiece = cutMin / 60;
-  const hoursPerPiece = Math.max(rawHoursPerPiece, 0.05);
-  const totalMachineHours = Math.max(hoursPerPiece * qty, MIN_MACHINE_HOURS);
+  const tolF = TOLERANCE_FACTOR[input.tolerance];
+  // Display cut time includes finish + safety + tolerance (unchanged formula).
+  const cutMin = estimateCutTimeMin({ ...input, quantity: qty }, true);
+  // Billable hours: base cut (finish/safety only) → floor at MIN → × tolerance.
+  // Guarantees precision > standard even when raw cut << MIN_MACHINE_HOURS.
+  const baseCutMin = estimateCutTimeMin({ ...input, quantity: qty }, false);
+  const baseHours = (baseCutMin / 60) * qty;
+  const totalMachineHours = Math.max(baseHours, MIN_MACHINE_HOURS) * tolF;
+  const hoursPerPiece = totalMachineHours / qty;
 
   const rate =
     mat.hourlyRateCny * MACHINE_RATE_MULTIPLIER[input.machine];
