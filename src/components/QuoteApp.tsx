@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { StlUploader } from "./StlUploader";
-import { StlViewer } from "./StlViewer";
 import { GeometryPanel } from "./GeometryPanel";
 import { QuoteForm, type QuoteFormState } from "./QuoteForm";
 import { QuoteCard } from "./QuoteCard";
@@ -18,6 +18,18 @@ const defaultForm: QuoteFormState = {
   machine: "3axis",
   mode: "hourly",
 };
+
+const StlViewer = dynamic(
+  () => import("./StlViewer").then((m) => m.StlViewer),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-80 w-full items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-sm text-slate-400">
+        加载 3D 预览…
+      </div>
+    ),
+  }
+);
 
 export function QuoteApp() {
   const [fileName, setFileName] = useState<string | null>(null);
