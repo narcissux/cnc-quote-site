@@ -1,4 +1,5 @@
 import type {
+  ComplexityConfig,
   FinishId,
   LeadTierId,
   MachineId,
@@ -7,7 +8,7 @@ import type {
   ToleranceId,
 } from "./types";
 
-export type { MaterialConfig, LeadTierConfig, QuoteConfig } from "./types";
+export type { MaterialConfig, LeadTierConfig, QuoteConfig, ComplexityConfig } from "./types";
 
 export const MATERIALS: QuoteConfig["materials"] = {
   Al6061: {
@@ -91,24 +92,53 @@ export const MACHINE_LABEL: Record<MachineId, string> = {
   "5axis": "5轴",
 };
 
-/** Fixed programming / CAM setup fee (¥) per job. */
+/** per_piece：固定编程 / 开档费 (¥) per job. */
 export const PROGRAMMING_FEE_CNY = 150;
+
+/** hourly：一次性编程工时（分钟）. */
+export const PROGRAMMING_MINUTES = 90;
 
 /** Stock oversize factor on bounding-box volume. */
 export const STOCK_FACTOR = 1.15;
 
-/** Safety / inefficiency factor on cut time. */
+/** Safety / inefficiency factor on rough cut time only. */
 export const CUT_TIME_SAFETY = 1.2;
 
-/** Min machine billable hours. */
-export const MIN_MACHINE_HOURS = 0.25;
+/** Finish path feed (mm/min) and stepover (mm). */
+export const FINISH_FEED_MM_PER_MIN = 1500;
+export const STEPOVER_MM = 0.4;
+
+/** Clamp / inspect defaults (minutes per piece). */
+export const CLAMP_MINUTES_PER_PC = 10;
+export const CLAMP_FACTOR = 1.0;
+export const INSPECT_MINUTES_STANDARD = 2;
+export const INSPECT_MINUTES_PRECISION = 8;
+
+/** Floor only on per-piece run hours (not order-level). */
+export const MIN_RUN_HOURS_PER_PC = 0.05;
+
+/** Order minimum fee (¥); 0 = off. */
+export const MIN_ORDER_FEE_CNY = 0;
 
 /** Lead time: base days + days per machine-hour batch. */
 export const LEAD_BASE_DAYS = 3;
 export const LEAD_HOURS_PER_DAY = 6;
 
-/** Quote confidence band (±%). Rough geometry heuristic → moderate confidence. */
+/** Quote confidence band (±%). */
 export const CONFIDENCE_PCT = 70;
+
+export const DEFAULT_COMPLEXITY: ComplexityConfig = {
+  applyTo: "finish",
+  fillRatioRef: 0.55,
+  fillRatioWeight: 0.35,
+  triangleRef: 8000,
+  triangleWeight: 0.25,
+  cylinderConeRef: 6,
+  cylinderConeWeight: 0.3,
+  minFactor: 1.0,
+  maxFactor: 1.75,
+  featureMinutesBase: 3,
+};
 
 export const LEAD_TIERS: QuoteConfig["leadTiers"] = {
   rush: {
@@ -142,13 +172,22 @@ export const DEFAULT_QUOTE_CONFIG: QuoteConfig = {
   machineRateMultiplier: { ...MACHINE_RATE_MULTIPLIER },
   machineLabel: { ...MACHINE_LABEL },
   programmingFeeCny: PROGRAMMING_FEE_CNY,
+  programmingMinutes: PROGRAMMING_MINUTES,
   stockFactor: STOCK_FACTOR,
   cutTimeSafety: CUT_TIME_SAFETY,
-  minMachineHours: MIN_MACHINE_HOURS,
+  finishFeedMmPerMin: FINISH_FEED_MM_PER_MIN,
+  stepoverMm: STEPOVER_MM,
+  clampMinutesPerPc: CLAMP_MINUTES_PER_PC,
+  clampFactor: CLAMP_FACTOR,
+  inspectMinutesStandard: INSPECT_MINUTES_STANDARD,
+  inspectMinutesPrecision: INSPECT_MINUTES_PRECISION,
+  minRunHoursPerPc: MIN_RUN_HOURS_PER_PC,
+  minOrderFeeCny: MIN_ORDER_FEE_CNY,
   leadBaseDays: LEAD_BASE_DAYS,
   leadHoursPerDay: LEAD_HOURS_PER_DAY,
   confidencePct: CONFIDENCE_PCT,
   leadTiers: structuredClone(LEAD_TIERS),
+  complexity: structuredClone(DEFAULT_COMPLEXITY),
 };
 
 export function cloneDefaultQuoteConfig(): QuoteConfig {

@@ -149,7 +149,19 @@ export function AdminConfigEditor({
           <h2 className="text-lg font-semibold">系数与费用</h2>
           <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
             <label>
-              编程费 ¥
+              备料系数
+              <input
+                type="number"
+                step="0.01"
+                className={inputCls}
+                value={cfg.stockFactor}
+                onChange={(e) =>
+                  setCfg({ ...cfg, stockFactor: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              编程费 ¥（按件）
               <input
                 type="number"
                 className={inputCls}
@@ -160,14 +172,13 @@ export function AdminConfigEditor({
               />
             </label>
             <label>
-              备料系数
+              编程工时 分（工时模式）
               <input
                 type="number"
-                step="0.01"
                 className={inputCls}
-                value={cfg.stockFactor}
+                value={cfg.programmingMinutes}
                 onChange={(e) =>
-                  setCfg({ ...cfg, stockFactor: Number(e.target.value) })
+                  setCfg({ ...cfg, programmingMinutes: Number(e.target.value) })
                 }
               />
             </label>
@@ -184,14 +195,102 @@ export function AdminConfigEditor({
               />
             </label>
             <label>
-              最低机时 h
+              精修进给 mm/min
+              <input
+                type="number"
+                className={inputCls}
+                value={cfg.finishFeedMmPerMin}
+                onChange={(e) =>
+                  setCfg({ ...cfg, finishFeedMmPerMin: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              精修行距 mm
               <input
                 type="number"
                 step="0.01"
                 className={inputCls}
-                value={cfg.minMachineHours}
+                value={cfg.stepoverMm}
                 onChange={(e) =>
-                  setCfg({ ...cfg, minMachineHours: Number(e.target.value) })
+                  setCfg({ ...cfg, stepoverMm: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              装夹分钟/件
+              <input
+                type="number"
+                step="0.1"
+                className={inputCls}
+                value={cfg.clampMinutesPerPc}
+                onChange={(e) =>
+                  setCfg({ ...cfg, clampMinutesPerPc: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              装夹系数
+              <input
+                type="number"
+                step="0.01"
+                className={inputCls}
+                value={cfg.clampFactor}
+                onChange={(e) =>
+                  setCfg({ ...cfg, clampFactor: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              检验(标准) 分
+              <input
+                type="number"
+                step="0.1"
+                className={inputCls}
+                value={cfg.inspectMinutesStandard}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    inspectMinutesStandard: Number(e.target.value),
+                  })
+                }
+              />
+            </label>
+            <label>
+              检验(精密) 分
+              <input
+                type="number"
+                step="0.1"
+                className={inputCls}
+                value={cfg.inspectMinutesPrecision}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    inspectMinutesPrecision: Number(e.target.value),
+                  })
+                }
+              />
+            </label>
+            <label>
+              最低机时/件 h
+              <input
+                type="number"
+                step="0.01"
+                className={inputCls}
+                value={cfg.minRunHoursPerPc}
+                onChange={(e) =>
+                  setCfg({ ...cfg, minRunHoursPerPc: Number(e.target.value) })
+                }
+              />
+            </label>
+            <label>
+              起步价 ¥（0=关）
+              <input
+                type="number"
+                className={inputCls}
+                value={cfg.minOrderFeeCny}
+                onChange={(e) =>
+                  setCfg({ ...cfg, minOrderFeeCny: Number(e.target.value) })
                 }
               />
             </label>
@@ -248,6 +347,43 @@ export function AdminConfigEditor({
                     toleranceFactor: {
                       ...cfg.toleranceFactor,
                       precision: Number(e.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+            <label>
+              复杂度→精修/特征
+              <select
+                className={inputCls}
+                value={cfg.complexity.applyTo}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    complexity: {
+                      ...cfg.complexity,
+                      applyTo: e.target.value as "finish" | "feature",
+                    },
+                  })
+                }
+              >
+                <option value="finish">乘到精修工时</option>
+                <option value="feature">附加特征工时</option>
+              </select>
+            </label>
+            <label>
+              复杂度上限
+              <input
+                type="number"
+                step="0.05"
+                className={inputCls}
+                value={cfg.complexity.maxFactor}
+                onChange={(e) =>
+                  setCfg({
+                    ...cfg,
+                    complexity: {
+                      ...cfg.complexity,
+                      maxFactor: Number(e.target.value),
                     },
                   })
                 }
@@ -408,6 +544,12 @@ export function AdminConfigEditor({
                   <div className="text-lg font-bold">
                     总价 ¥{q.totalPriceCny.toFixed(2)} · 单价 ¥
                     {q.unitPriceCny.toFixed(2)} · 交期 {q.leadTimeDays} 天
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    计费 {q.billableHours.toFixed(2)} h · 开粗 {q.roughMin.toFixed(1)} /
+                    精修 {q.finishMin.toFixed(1)} / 装夹 {q.clampMin.toFixed(1)} /
+                    检验 {q.inspectMin.toFixed(1)} 分 · 复杂度 ×
+                    {q.complexityFactor.toFixed(2)}
                   </div>
                   <ul className="mt-2 space-y-1 text-slate-700">
                     {q.lines.map((l) => (
