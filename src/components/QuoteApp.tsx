@@ -31,6 +31,18 @@ const StlViewer = dynamic(
   }
 );
 
+function isStepName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".step") || lower.endsWith(".stp");
+}
+
+function decodeBase64Float32(b64: string): Float32Array {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Float32Array(bytes.buffer);
+}
+
 export function QuoteApp() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<GeometryMetrics | null>(null);
@@ -48,18 +60,70 @@ export function QuoteApp() {
     });
   }, [metrics, form]);
 
+  async function parseStepViaApi(file: File) {
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch("/api/parse-step", { method: "POST", body });
+    const data = (await res.json()) as {
+      error?: string;
+      metrics?: GeometryMetrics;
+      positionsBase64?: string;
+      normalsBase64?: string;
+      stlBase64?: string;
+    };
+    if (!res.ok) {
+      throw new Error(data.error || "STEP 解析失败");
+    }
+    if (!data.metrics) {
+      throw new Error("STEP 文件为空或无法解析（无有效实体）");
+    }
+    if (data.positionsBase64 && data.normalsBase64) {
+      const pos = decodeBase64Float32(data.positionsBase64);
+      const nrm = decodeBase64Float32(data.normalsBase64);
+      if (pos.length === 0) {
+        throw new Error("STEP 文件为空或无法解析（无有效实体）");
+      }
+      return { metrics: data.metrics, positions: pos, normals: nrm };
+    }
+    // Fallback: re-parse returned STL
+    if (data.stlBase64) {
+      const bin = atob(data.stlBase64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const { parseStlBuffer } = await import("@/lib/stl");
+      const parsed = parseStlBuffer(bytes.buffer);
+      return {
+        metrics: data.metrics,
+        positions: parsed.positions,
+        normals: parsed.normals,
+      };
+    }
+    throw new Error("STEP 解析失败");
+  }
+
   async function onFile(file: File) {
     setBusy(true);
     setError(null);
     try {
-      const parsed = await parseStlFile(file);
-      if (parsed.metrics.triangleCount === 0) {
-        throw new Error("文件为空或无法解析（无有效网格）");
+      if (isStepName(file.name)) {
+        const parsed = await parseStepViaApi(file);
+        if (parsed.metrics.triangleCount === 0) {
+          throw new Error("STEP 文件为空或无法解析（无有效实体）");
+        }
+        setFileName(file.name);
+        setMetrics(parsed.metrics);
+        setPositions(parsed.positions);
+        setNormals(parsed.normals);
+      } else {
+        const parsed = await parseStlFile(file);
+        if (parsed.metrics.triangleCount === 0) {
+          throw new Error("文件为空或无法解析（无有效网格）");
+        }
+        setFileName(file.name);
+        setMetrics(parsed.metrics);
+        setPositions(parsed.positions);
+        setNormals(parsed.normals);
       }
-      setFileName(file.name);
-      setMetrics(parsed.metrics);
-      setPositions(parsed.positions);
-      setNormals(parsed.normals);
     } catch (e) {
       setError(e instanceof Error ? e.message : "解析失败");
       setMetrics(null);
@@ -76,11 +140,11 @@ export function QuoteApp() {
       <header className="mb-8">
         <p className="text-sm font-medium text-brand-600">CNC 即时报价 MVP</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-          上传 STL，秒出加工估价
+          上传 STL / STEP，秒出加工估价
         </h1>
         <p className="mt-2 max-w-2xl text-slate-600">
-          本地解析模型几何 → 估算去除量与机时 → 按工时或按件给出人民币报价明细。
-          估算值为近似启发式，仅供参考。
+          本地解析 STL，或服务端转换 STEP → 估算去除量与机时 → 按工时或按件给出人民币报价明细。
+          估算值为近似启发式，仅供参考。可另附 PDF 图纸，暂不自动读公差。
         </p>
       </header>
 
@@ -112,7 +176,7 @@ export function QuoteApp() {
             <QuoteCard quote={quote} />
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
-              上传 STL 后即可查看实时报价明细
+              上传 STL / STEP 后即可查看实时报价明细
             </div>
           )}
         </section>

@@ -1,20 +1,23 @@
 # CNC 即时报价 / Instant CNC Quote
 
-Phases 1+2 MVP：上传 STL → 三维预览与几何指标 → 工时/按件人民币报价明细。
+Phases 1+2 MVP：上传 **STL / STEP** → 三维预览与几何指标 → 工时/按件人民币报价明细。
 
 ## Features · 功能
 
-- **STL 上传**：拖拽或点击，≤25MB，客户端解析（二进制 / ASCII）
-- **三维预览**：Three.js + React Three Fiber + drei
+- **模型上传**：拖拽或点击，≤25MB
+  - **STL**：客户端解析（二进制 / ASCII）
+  - **STEP**（`.step` / `.stp`）：服务端 `/api/parse-step` 经 OpenCASCADE WASM（`occt-import-js`）三角化 → 几何指标 + 预览网格
+- **三维预览**：Three.js（原生，无 R3F）
 - **几何指标**：长×宽×高 (mm)、体积、表面积、三角面数
 - **报价引擎**：纯 TypeScript（`src/lib/quote/`），支持
   - **工时**：编程费 + 机床工时×费率 + 材料 + 表面处理
   - **按件**：单价 × 数量（单价摊销编程/调试）
 - **币种 / 界面**：CNY ¥ · 中文
+- **PDF**：可另附 PDF 图纸，**暂不自动读公差**（本轮 out of scope）
 
 ## Estimator · 估算说明（近似，非 CAM 循环时间）
 
-1. 解析 STL → 包围盒、体积、表面积
+1. 解析 STL / STEP → 包围盒、体积、表面积
 2. `stock = bbox_volume × 1.15`
 3. `removed = max(stock − part_volume, 0)`
 4. `CutTime_min = (removed_cm³ / MRR[material]) × finish_factor × 1.2 × tolerance_factor`
@@ -37,13 +40,22 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Docker
+
+```bash
+docker build -t cnc-quote-site .
+docker run --rm -p 3000:3000 cnc-quote-site
+```
+
+镜像含 `occt-import-js` WASM（架构无关，可部署 arm64）。
+
 ## Stack
 
-Next.js App Router · TypeScript · Tailwind CSS · R3F · drei · Vitest
+Next.js App Router · TypeScript · Tailwind CSS · Three.js · occt-import-js · Vitest
 
 ## Out of scope (deferred)
 
-Hybrid pricing、示例 STL 按钮、DFM 面板打磨、支付、账号、STEP、CAM 刀路、订单。
+Hybrid pricing、示例模型按钮、DFM 面板打磨、支付、账号、PDF 公差自动解析、CAM 刀路、订单。
 
 ## License
 

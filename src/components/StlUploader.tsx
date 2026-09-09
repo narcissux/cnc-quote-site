@@ -10,6 +10,15 @@ interface StlUploaderProps {
   error?: string | null;
 }
 
+function isAcceptedCadName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return (
+    lower.endsWith(".stl") ||
+    lower.endsWith(".step") ||
+    lower.endsWith(".stp")
+  );
+}
+
 export function StlUploader({ onFile, busy, error }: StlUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -19,9 +28,8 @@ export function StlUploader({ onFile, busy, error }: StlUploaderProps) {
     (file: File | undefined | null) => {
       setLocalError(null);
       if (!file) return;
-      const name = file.name.toLowerCase();
-      if (!name.endsWith(".stl")) {
-        setLocalError("请上传 .stl 文件");
+      if (!isAcceptedCadName(file.name)) {
+        setLocalError("请上传 .stl / .step / .stp 文件");
         return;
       }
       if (file.size > MAX_BYTES) {
@@ -60,15 +68,18 @@ export function StlUploader({ onFile, busy, error }: StlUploaderProps) {
       >
         <div className="text-4xl">📦</div>
         <p className="mt-3 text-base font-semibold text-slate-800">
-          拖拽 STL 到此处，或点击选择
+          拖拽 STL / STEP 到此处，或点击选择
         </p>
         <p className="mt-1 text-sm text-slate-500">
-          支持二进制 / ASCII · 最大 25MB · 单位按毫米解析
+          支持 .stl · .step · .stp · 最大 25MB · 单位按毫米解析
+        </p>
+        <p className="mt-1 text-xs text-slate-400">
+          可另附 PDF 图纸，暂不自动读公差
         </p>
         <input
           ref={inputRef}
           type="file"
-          accept=".stl,model/stl,application/sla"
+          accept=".stl,.step,.stp,model/stl,application/sla,model/step,application/step"
           className="hidden"
           onChange={(e) => handleFile(e.target.files?.[0])}
         />
