@@ -33,6 +33,9 @@ describe("parseStepBuffer", () => {
     expect(parsed.metrics.widthMm).toBeCloseTo(10, 0);
     expect(parsed.metrics.heightMm).toBeCloseTo(10, 0);
     expect(parsed.metrics.volumeMm3).toBeGreaterThan(500);
+    expect(parsed.metrics.faceCount).toBe(6);
+    expect(parsed.metrics.sourceFormat).toBe("step");
+    expect(parsed.metrics.featureConfidence).toBe("medium");
     expect(parsed.positions.length).toBe(parsed.metrics.triangleCount * 9);
     expect(parsed.stlBuffer.byteLength).toBe(
       84 + parsed.metrics.triangleCount * 50

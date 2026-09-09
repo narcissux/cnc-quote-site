@@ -38,9 +38,16 @@ export function QuoteCard({ quote }: { quote: QuoteResult }) {
         </div>
       </div>
 
-      <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-        估算切削时间 {quote.cutTimeMin.toFixed(1)} 分钟 · 机床工时{" "}
-        {quote.machineHours.toFixed(2)} 小时（近似，非 CAM 循环时间）
+      <div className="mt-4 space-y-1 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <div>
+          计费机时 {quote.billableHours.toFixed(2)} h（{quote.runHoursPerPc.toFixed(3)}{" "}
+          h/件）· 复杂度 ×{quote.complexityFactor.toFixed(2)} · 填充率{" "}
+          {(quote.fillRatio * 100).toFixed(0)}%
+        </div>
+        <div>
+          分项(分/件)：开粗 {quote.roughMin.toFixed(1)} · 精修 {quote.finishMin.toFixed(1)} ·
+          装夹 {quote.clampMin.toFixed(1)} · 检验 {quote.inspectMin.toFixed(1)}
+        </div>
       </div>
 
       <ul className="mt-4 divide-y divide-slate-100">
@@ -57,7 +64,7 @@ export function QuoteCard({ quote }: { quote: QuoteResult }) {
         ))}
       </ul>
       <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-sm font-semibold">
-        <span>合计（五项加总）</span>
+        <span>合计（明细加总）</span>
         <span>{yuan(lineSum)}</span>
       </div>
 

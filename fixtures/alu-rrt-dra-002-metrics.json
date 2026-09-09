@@ -1,0 +1,18 @@
+{
+  "name": "ALU.RRT.DRA.002 (constructed proxy; inquiry 5fd0babc not in repo)",
+  "note": "70x22x22 V≈15985; surfaceArea estimated ~9020 from fill-adjusted bbox SA",
+  "metrics": {
+    "lengthMm": 70,
+    "widthMm": 22,
+    "heightMm": 22,
+    "volumeMm3": 15985,
+    "surfaceAreaMm2": 9020,
+    "triangleCount": 4200,
+    "fillRatio": 0.47181227863046044,
+    "faceCount": 28,
+    "cylinderCount": 3,
+    "coneCount": 0,
+    "sourceFormat": "step",
+    "featureConfidence": "medium"
+  }
+}

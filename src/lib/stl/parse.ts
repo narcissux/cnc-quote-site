@@ -5,6 +5,7 @@
  */
 
 import type { GeometryMetrics } from "@/lib/quote/types";
+import { enrichMetrics } from "@/lib/quote/features";
 
 export interface ParsedStl {
   metrics: GeometryMetrics;
@@ -213,6 +214,8 @@ export function parseStlBuffer(buffer: ArrayBuffer): ParsedStl {
     throw new StlParseError(STL_EMPTY_OR_INVALID_MSG);
   }
 
-  const metrics = computeMetrics(positions, n);
+  const metrics = enrichMetrics(computeMetrics(positions, n), {
+    sourceFormat: "stl",
+  });
   return { metrics, positions, normals };
 }

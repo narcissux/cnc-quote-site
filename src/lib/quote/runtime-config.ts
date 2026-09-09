@@ -2,6 +2,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { cloneDefaultQuoteConfig, DEFAULT_QUOTE_CONFIG } from "./config";
 import type {
+  ComplexityConfig,
   FinishId,
   LeadTierId,
   MachineId,
@@ -22,6 +23,31 @@ export function getConfigPath(): string {
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function mergeComplexity(raw: unknown, base: ComplexityConfig): ComplexityConfig {
+  if (!isObj(raw)) return base;
+  const next = { ...base };
+  if (raw.applyTo === "finish" || raw.applyTo === "feature") {
+    next.applyTo = raw.applyTo;
+  }
+  const numKeys: Array<keyof ComplexityConfig> = [
+    "fillRatioRef",
+    "fillRatioWeight",
+    "triangleRef",
+    "triangleWeight",
+    "cylinderConeRef",
+    "cylinderConeWeight",
+    "minFactor",
+    "maxFactor",
+    "featureMinutesBase",
+  ];
+  for (const k of numKeys) {
+    if (typeof raw[k] === "number") {
+      (next as unknown as Record<string, number>)[k] = raw[k] as number;
+    }
+  }
+  return next;
 }
 
 function mergeConfig(raw: unknown): QuoteConfig {
@@ -47,10 +73,7 @@ function mergeConfig(raw: unknown): QuoteConfig {
     }
   }
 
-  const numMaps: Array<[
-    keyof QuoteConfig,
-    Record<string, number>,
-  ]> = [
+  const numMaps: Array<[keyof QuoteConfig, Record<string, number>]> = [
     ["toleranceFactor", base.toleranceFactor],
     ["finishFactor", base.finishFactor],
     ["finishSurchargeCny", base.finishSurchargeCny],
@@ -79,9 +102,17 @@ function mergeConfig(raw: unknown): QuoteConfig {
 
   const scalars: Array<keyof QuoteConfig> = [
     "programmingFeeCny",
+    "programmingMinutes",
     "stockFactor",
     "cutTimeSafety",
-    "minMachineHours",
+    "finishFeedMmPerMin",
+    "stepoverMm",
+    "clampMinutesPerPc",
+    "clampFactor",
+    "inspectMinutesStandard",
+    "inspectMinutesPrecision",
+    "minRunHoursPerPc",
+    "minOrderFeeCny",
     "leadBaseDays",
     "leadHoursPerDay",
     "confidencePct",
@@ -91,6 +122,9 @@ function mergeConfig(raw: unknown): QuoteConfig {
       (base as unknown as Record<string, unknown>)[key] = raw[key];
     }
   }
+
+  // Legacy: old minMachineHours was order-level; ignore for run floor (new default stays).
+  // Do not map it onto minRunHoursPerPc — that would reintroduce geometry-killing floors.
 
   if (isObj(raw.leadTiers)) {
     for (const id of Object.keys(base.leadTiers) as LeadTierId[]) {
@@ -105,6 +139,8 @@ function mergeConfig(raw: unknown): QuoteConfig {
       };
     }
   }
+
+  base.complexity = mergeComplexity(raw.complexity, base.complexity);
 
   return base;
 }

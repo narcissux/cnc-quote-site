@@ -8,6 +8,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { computeMetrics } from "@/lib/stl/parse";
 import type { GeometryMetrics } from "@/lib/quote/types";
+import { enrichMetrics, type BrepFaceRange } from "@/lib/quote/features";
 
 export const STEP_EMPTY_OR_INVALID_MSG = "STEP 文件为空或无法解析（无有效实体）";
 export const STEP_UNSUPPORTED_MSG = "请上传 .step 或 .stp 文件";
@@ -34,6 +35,7 @@ type OcctMesh = {
     normal?: { array?: number[] };
   };
   index?: { array?: number[] };
+  brep_faces?: Array<{ first?: number; last?: number }>;
 };
 
 type OcctResult = {
@@ -92,6 +94,7 @@ function expandMeshes(meshes: OcctMesh[]): {
   positions: Float32Array;
   normals: Float32Array;
   triangleCount: number;
+  brepFaces: BrepFaceRange[];
 } {
   let triCount = 0;
   for (const m of meshes) {
@@ -109,6 +112,7 @@ function expandMeshes(meshes: OcctMesh[]): {
 
   const positions = new Float32Array(triCount * 9);
   const normals = new Float32Array(triCount * 9);
+  const brepFaces: BrepFaceRange[] = [];
   let t = 0;
 
   for (const m of meshes) {
@@ -116,6 +120,7 @@ function expandMeshes(meshes: OcctMesh[]): {
     if (!pos || pos.length < 9) continue;
     const nrm = m.attributes?.normal?.array;
     const idx = m.index?.array;
+    const meshTriStart = t;
 
     if (idx && idx.length >= 3) {
       for (let i = 0; i + 2 < idx.length; i += 3) {
@@ -141,7 +146,6 @@ function expandMeshes(meshes: OcctMesh[]): {
             normals[base + v * 3 + 2] = nrm[src + 2];
           }
         } else {
-          // face normal from cross product
           const ax = positions[base],
             ay = positions[base + 1],
             az = positions[base + 2];
@@ -167,7 +171,6 @@ function expandMeshes(meshes: OcctMesh[]): {
         t++;
       }
     } else {
-      // already non-indexed triplets
       const n = Math.floor(pos.length / 9);
       for (let i = 0; i < n; i++) {
         const base = t * 9;
@@ -177,6 +180,17 @@ function expandMeshes(meshes: OcctMesh[]): {
           normals.set(nrm.slice(src, src + 9), base);
         }
         t++;
+      }
+    }
+
+    const localFaces = m.brep_faces;
+    if (localFaces && localFaces.length > 0) {
+      for (const f of localFaces) {
+        if (typeof f.first !== "number" || typeof f.last !== "number") continue;
+        brepFaces.push({
+          first: meshTriStart + f.first,
+          last: meshTriStart + f.last,
+        });
       }
     }
   }
@@ -189,6 +203,7 @@ function expandMeshes(meshes: OcctMesh[]): {
     positions: t === triCount ? positions : positions.subarray(0, t * 9),
     normals: t === triCount ? normals : normals.subarray(0, t * 9),
     triangleCount: t,
+    brepFaces,
   };
 }
 
@@ -248,8 +263,15 @@ export async function parseStepBuffer(buffer: ArrayBuffer): Promise<ParsedStep> 
     throw new StepParseError(STEP_EMPTY_OR_INVALID_MSG);
   }
 
-  const { positions, normals, triangleCount } = expandMeshes(result.meshes);
-  const metrics = computeMetrics(positions, triangleCount);
+  const { positions, normals, triangleCount, brepFaces } = expandMeshes(
+    result.meshes
+  );
+  const metrics = enrichMetrics(computeMetrics(positions, triangleCount), {
+    sourceFormat: "step",
+    brepFaces,
+    positions,
+    normals,
+  });
   const stlBuffer = buildBinaryStl(positions, normals, triangleCount);
 
   return { metrics, positions, normals, stlBuffer };
