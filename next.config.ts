@@ -8,7 +8,10 @@ const nextConfig: NextConfig = {
   // Keep OCCT WASM loader external so locateFile resolves next to the .wasm
   serverExternalPackages: ["occt-import-js"],
   outputFileTracingIncludes: {
-    "/api/parse-step": ["./node_modules/occt-import-js/**/*"],
+    "/api/parse-step": [
+      "./node_modules/occt-import-js/**/*",
+      "./public/occt-import-js.wasm",
+    ],
   },
 };
 

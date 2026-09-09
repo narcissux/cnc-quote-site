@@ -21,8 +21,9 @@ RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
-# Ensure OCCT WASM for /api/parse-step (arch-neutral)
+# Ensure OCCT WASM for /api/parse-step (arch-neutral): package + public copy
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/occt-import-js ./node_modules/occt-import-js
+COPY --from=builder --chown=nextjs:nodejs /app/public/occt-import-js.wasm ./public/occt-import-js.wasm
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

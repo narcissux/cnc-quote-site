@@ -3,6 +3,7 @@
  * Tessellates BREP → triangle mesh, then computes GeometryMetrics (mm).
  */
 
+import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { computeMetrics } from "@/lib/stl/parse";
@@ -49,15 +50,39 @@ type OcctModule = {
 
 let occtPromise: Promise<OcctModule> | null = null;
 
+/**
+ * Resolve OCCT WASM via filesystem paths only.
+ * Do NOT use require.resolve("occt-import-js"): Next/webpack rewrites that
+ * to a numeric module id, so path.dirname(...) becomes "." and locateFile
+ * opens a bare "occt-import-js.wasm" (ENOENT under the API route).
+ */
+function resolveOcctAsset(file: string): string {
+  const cwd = process.cwd();
+  const serverDir = path.dirname(process.argv[1] || cwd);
+  const candidates = [
+    // Copied by scripts/copy-occt-wasm.mjs (prebuild / pretest)
+    path.join(cwd, "public", file),
+    path.join(cwd, "node_modules", "occt-import-js", "dist", file),
+    // Docker standalone: cwd is /app with node_modules next to server.js
+    path.join(serverDir, "node_modules", "occt-import-js", "dist", file),
+    path.join(serverDir, "public", file),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return candidates[0];
+}
+
 function loadOcct(): Promise<OcctModule> {
   if (!occtPromise) {
+    // createRequire(__filename) -> external require (serverExternalPackages).
+    // Avoid dynamic createRequire args (webpack emits void 0).
     const nodeRequire = createRequire(__filename);
     const factory = nodeRequire("occt-import-js") as (
       options?: { locateFile?: (file: string) => string }
     ) => Promise<OcctModule>;
-    const distDir = path.dirname(nodeRequire.resolve("occt-import-js"));
     occtPromise = factory({
-      locateFile: (file: string) => path.join(distDir, file),
+      locateFile: (file: string) => resolveOcctAsset(file),
     });
   }
   return occtPromise;
