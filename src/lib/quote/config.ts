@@ -1,19 +1,15 @@
-import type { FinishId, MachineId, MaterialId, ToleranceId } from "./types";
+import type {
+  FinishId,
+  LeadTierId,
+  MachineId,
+  MaterialId,
+  QuoteConfig,
+  ToleranceId,
+} from "./types";
 
-export interface MaterialConfig {
-  id: MaterialId;
-  labelZh: string;
-  /** Density g/cm³ */
-  densityGPerCm3: number;
-  /** Material price ¥/kg */
-  pricePerKg: number;
-  /** Material removal rate cm³/min (rough heuristic) */
-  mrrCm3PerMin: number;
-  /** Base machine hourly rate ¥/h for this material difficulty */
-  hourlyRateCny: number;
-}
+export type { MaterialConfig, LeadTierConfig, QuoteConfig } from "./types";
 
-export const MATERIALS: Record<MaterialId, MaterialConfig> = {
+export const MATERIALS: QuoteConfig["materials"] = {
   Al6061: {
     id: "Al6061",
     labelZh: "铝合金 6061",
@@ -113,3 +109,48 @@ export const LEAD_HOURS_PER_DAY = 6;
 
 /** Quote confidence band (±%). Rough geometry heuristic → moderate confidence. */
 export const CONFIDENCE_PCT = 70;
+
+export const LEAD_TIERS: QuoteConfig["leadTiers"] = {
+  rush: {
+    id: "rush",
+    labelZh: "加急",
+    priceFactor: 1.3,
+    daysOffset: -2,
+  },
+  standard: {
+    id: "standard",
+    labelZh: "标准",
+    priceFactor: 1.0,
+    daysOffset: 0,
+  },
+  economy: {
+    id: "economy",
+    labelZh: "经济",
+    priceFactor: 0.92,
+    daysOffset: 4,
+  },
+};
+
+/** Built-in default quote config (fallback when data/quote-config.json missing). */
+export const DEFAULT_QUOTE_CONFIG: QuoteConfig = {
+  materials: structuredClone(MATERIALS),
+  toleranceFactor: { ...TOLERANCE_FACTOR },
+  toleranceLabel: { ...TOLERANCE_LABEL },
+  finishFactor: { ...FINISH_FACTOR },
+  finishLabel: { ...FINISH_LABEL },
+  finishSurchargeCny: { ...FINISH_SURCHARGE_CNY },
+  machineRateMultiplier: { ...MACHINE_RATE_MULTIPLIER },
+  machineLabel: { ...MACHINE_LABEL },
+  programmingFeeCny: PROGRAMMING_FEE_CNY,
+  stockFactor: STOCK_FACTOR,
+  cutTimeSafety: CUT_TIME_SAFETY,
+  minMachineHours: MIN_MACHINE_HOURS,
+  leadBaseDays: LEAD_BASE_DAYS,
+  leadHoursPerDay: LEAD_HOURS_PER_DAY,
+  confidencePct: CONFIDENCE_PCT,
+  leadTiers: structuredClone(LEAD_TIERS),
+};
+
+export function cloneDefaultQuoteConfig(): QuoteConfig {
+  return structuredClone(DEFAULT_QUOTE_CONFIG);
+}

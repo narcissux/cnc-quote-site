@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bboxVolumeMm3, computeQuote, estimateCutTimeMin, materialCostPerPiece } from "./engine";
-import { CUT_TIME_SAFETY, MATERIALS, STOCK_FACTOR } from "./config";
+import { CUT_TIME_SAFETY, DEFAULT_QUOTE_CONFIG, MATERIALS, STOCK_FACTOR, cloneDefaultQuoteConfig } from "./config";
 import type { GeometryMetrics, QuoteInput } from "./types";
 
 const cube10: GeometryMetrics = {
@@ -21,6 +21,7 @@ function baseInput(over: Partial<QuoteInput> = {}): QuoteInput {
     finish: "as_machined",
     machine: "3axis",
     mode: "hourly",
+    leadTier: "standard",
     ...over,
   };
 }
@@ -69,19 +70,33 @@ describe("materialCostPerPiece", () => {
     const massKg = (stockCm3 * MATERIALS.Al6061.densityGPerCm3) / 1000;
     expect(cost).toBeCloseTo(massKg * MATERIALS.Al6061.pricePerKg, 6);
   });
+
+  it("respects runtime config pricePerKg", () => {
+    const cfg = cloneDefaultQuoteConfig();
+    cfg.materials.Al6061.pricePerKg = 100;
+    const cost = materialCostPerPiece(baseInput(), cfg);
+    const stockCm3 = (1000 * STOCK_FACTOR) / 1000;
+    const massKg = (stockCm3 * MATERIALS.Al6061.densityGPerCm3) / 1000;
+    expect(cost).toBeCloseTo(massKg * 100, 6);
+  });
 });
 
 describe("computeQuote hourly", () => {
-  it("sums programming + machine + material", () => {
+  it("sums five lines to total", () => {
     const q = computeQuote(baseInput({ quantity: 2, mode: "hourly" }));
     expect(q.currency).toBe("CNY");
     expect(q.mode).toBe("hourly");
+    expect(q.leadTier).toBe("standard");
     expect(q.totalPriceCny).toBeGreaterThan(0);
     expect(q.unitPriceCny).toBeCloseTo(q.totalPriceCny / 2, 2);
+    expect(q.lines.length).toBe(5);
+    expect(q.lines.map((l) => l.id).sort()).toEqual(
+      ["finish", "lead", "machine", "material", "programming"].sort(),
+    );
     const sum = q.lines.reduce((s, l) => s + l.amountCny, 0);
     expect(sum).toBeCloseTo(q.totalPriceCny, 1);
-    expect(q.leadTimeDays).toBeGreaterThanOrEqual(3);
-    expect(q.confidencePct).toBe(70);
+    expect(q.leadTimeDays).toBeGreaterThanOrEqual(1);
+    expect(q.confidencePct).toBe(DEFAULT_QUOTE_CONFIG.confidencePct);
     expect(q.notes.length).toBeGreaterThan(0);
   });
 
@@ -98,6 +113,7 @@ describe("computeQuote per_piece", () => {
     const q10 = computeQuote(baseInput({ quantity: 10, mode: "per_piece" }));
     expect(q10.unitPriceCny).toBeLessThan(q1.unitPriceCny);
     expect(q10.totalPriceCny).toBeCloseTo(q10.unitPriceCny * 10, 1);
+    expect(q10.lines.length).toBe(5);
   });
 
   it("clamps quantity to 1–1000", () => {
@@ -110,7 +126,6 @@ describe("computeQuote per_piece", () => {
 
 describe("tolerance pricing monotonicity", () => {
   it("precision unit/total price strictly greater than standard on tiny parts", () => {
-    // Tiny cube: raw cut << MIN_MACHINE_HOURS; billable = max(MIN, base) * tolF
     const std = computeQuote(baseInput({ tolerance: "standard", mode: "hourly" }));
     const prec = computeQuote(baseInput({ tolerance: "precision", mode: "hourly" }));
     expect(prec.machineHours).toBeGreaterThan(std.machineHours);
@@ -124,5 +139,21 @@ describe("tolerance pricing monotonicity", () => {
     expect(prec.unitPriceCny).toBeGreaterThan(std.unitPriceCny);
     expect(prec.totalPriceCny).toBeGreaterThan(std.totalPriceCny);
     expect(prec.machineHours).toBeGreaterThan(std.machineHours);
+  });
+});
+
+describe("lead tiers", () => {
+  it("rush > standard > economy on price", () => {
+    const rush = computeQuote(baseInput({ leadTier: "rush" }));
+    const std = computeQuote(baseInput({ leadTier: "standard" }));
+    const eco = computeQuote(baseInput({ leadTier: "economy" }));
+    expect(rush.totalPriceCny).toBeGreaterThan(std.totalPriceCny);
+    expect(std.totalPriceCny).toBeGreaterThan(eco.totalPriceCny);
+    expect(rush.leadTimeDays).toBeLessThan(eco.leadTimeDays);
+    const leadLine = (q: ReturnType<typeof computeQuote>) =>
+      q.lines.find((l) => l.id === "lead")!.amountCny;
+    expect(leadLine(rush)).toBeGreaterThan(0);
+    expect(leadLine(std)).toBeCloseTo(0, 5);
+    expect(leadLine(eco)).toBeLessThan(0);
   });
 });

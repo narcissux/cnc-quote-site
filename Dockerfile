@@ -24,6 +24,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Ensure OCCT WASM for /api/parse-step (arch-neutral): package + public copy
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/occt-import-js ./node_modules/occt-import-js
 COPY --from=builder --chown=nextjs:nodejs /app/public/occt-import-js.wasm ./public/occt-import-js.wasm
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

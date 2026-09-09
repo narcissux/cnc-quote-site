@@ -1,13 +1,9 @@
 "use client";
 
-import {
-  FINISH_LABEL,
-  MACHINE_LABEL,
-  MATERIALS,
-  TOLERANCE_LABEL,
-} from "@/lib/quote/config";
+import type { QuoteConfig } from "@/lib/quote/types";
 import type {
   FinishId,
+  LeadTierId,
   MachineId,
   MaterialId,
   PricingMode,
@@ -21,17 +17,19 @@ export interface QuoteFormState {
   finish: FinishId;
   machine: MachineId;
   mode: PricingMode;
+  leadTier: LeadTierId;
 }
 
 interface QuoteFormProps {
   value: QuoteFormState;
   onChange: (next: QuoteFormState) => void;
+  config: QuoteConfig;
 }
 
 const selectCls =
   "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100";
 
-export function QuoteForm({ value, onChange }: QuoteFormProps) {
+export function QuoteForm({ value, onChange, config }: QuoteFormProps) {
   const set = <K extends keyof QuoteFormState>(key: K, v: QuoteFormState[K]) =>
     onChange({ ...value, [key]: v });
 
@@ -69,9 +67,9 @@ export function QuoteForm({ value, onChange }: QuoteFormProps) {
           value={value.materialId}
           onChange={(e) => set("materialId", e.target.value as MaterialId)}
         >
-          {(Object.keys(MATERIALS) as MaterialId[]).map((id) => (
+          {(Object.keys(config.materials) as MaterialId[]).map((id) => (
             <option key={id} value={id}>
-              {MATERIALS[id].labelZh}
+              {config.materials[id].labelZh}
             </option>
           ))}
         </select>
@@ -99,9 +97,9 @@ export function QuoteForm({ value, onChange }: QuoteFormProps) {
             value={value.tolerance}
             onChange={(e) => set("tolerance", e.target.value as ToleranceId)}
           >
-            {(Object.keys(TOLERANCE_LABEL) as ToleranceId[]).map((id) => (
+            {(Object.keys(config.toleranceLabel) as ToleranceId[]).map((id) => (
               <option key={id} value={id}>
-                {TOLERANCE_LABEL[id]}
+                {config.toleranceLabel[id]}
               </option>
             ))}
           </select>
@@ -113,9 +111,9 @@ export function QuoteForm({ value, onChange }: QuoteFormProps) {
             value={value.finish}
             onChange={(e) => set("finish", e.target.value as FinishId)}
           >
-            {(Object.keys(FINISH_LABEL) as FinishId[]).map((id) => (
+            {(Object.keys(config.finishLabel) as FinishId[]).map((id) => (
               <option key={id} value={id}>
-                {FINISH_LABEL[id]}
+                {config.finishLabel[id]}
               </option>
             ))}
           </select>
@@ -129,13 +127,37 @@ export function QuoteForm({ value, onChange }: QuoteFormProps) {
           value={value.machine}
           onChange={(e) => set("machine", e.target.value as MachineId)}
         >
-          {(Object.keys(MACHINE_LABEL) as MachineId[]).map((id) => (
+          {(Object.keys(config.machineLabel) as MachineId[]).map((id) => (
             <option key={id} value={id}>
-              {MACHINE_LABEL[id]}
+              {config.machineLabel[id]}
               {id === "5axis" ? "（可选加价）" : ""}
             </option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium text-slate-700">交期</label>
+        <div className="mt-1 grid grid-cols-3 gap-2">
+          {(Object.keys(config.leadTiers) as LeadTierId[]).map((id) => {
+            const t = config.leadTiers[id];
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => set("leadTier", id)}
+                className={`rounded-lg border px-2 py-2 text-sm font-medium transition ${
+                  value.leadTier === id
+                    ? "border-brand-600 bg-brand-600 text-white"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                <div>{t.labelZh}</div>
+                <div className="text-[10px] opacity-80">×{t.priceFactor}</div>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

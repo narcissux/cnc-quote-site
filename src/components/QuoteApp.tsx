@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { StlUploader } from "./StlUploader";
 import { GeometryPanel } from "./GeometryPanel";
 import { QuoteForm, type QuoteFormState } from "./QuoteForm";
 import { QuoteCard } from "./QuoteCard";
+import { InquiryForm } from "./InquiryForm";
 import { parseStlFile } from "@/lib/stl";
 import { computeQuote } from "@/lib/quote";
-import type { GeometryMetrics } from "@/lib/quote/types";
+import { DEFAULT_QUOTE_CONFIG } from "@/lib/quote/config";
+import type { GeometryMetrics, QuoteConfig } from "@/lib/quote/types";
 
 const defaultForm: QuoteFormState = {
   materialId: "Al6061",
@@ -17,6 +19,7 @@ const defaultForm: QuoteFormState = {
   finish: "as_machined",
   machine: "3axis",
   mode: "hourly",
+  leadTier: "standard",
 };
 
 const StlViewer = dynamic(
@@ -45,20 +48,46 @@ function decodeBase64Float32(b64: string): Float32Array {
 
 export function QuoteApp() {
   const [fileName, setFileName] = useState<string | null>(null);
+  const [modelFile, setModelFile] = useState<File | null>(null);
   const [metrics, setMetrics] = useState<GeometryMetrics | null>(null);
   const [positions, setPositions] = useState<Float32Array | null>(null);
   const [normals, setNormals] = useState<Float32Array | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<QuoteFormState>(defaultForm);
+  const [config, setConfig] = useState<QuoteConfig>(DEFAULT_QUOTE_CONFIG);
+  const [configReady, setConfigReady] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/quote-config");
+        if (!res.ok) throw new Error("config");
+        const data = (await res.json()) as QuoteConfig;
+        if (!cancelled) {
+          setConfig(data);
+          setConfigReady(true);
+        }
+      } catch {
+        if (!cancelled) setConfigReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const quote = useMemo(() => {
     if (!metrics) return null;
-    return computeQuote({
-      geometry: metrics,
-      ...form,
-    });
-  }, [metrics, form]);
+    return computeQuote(
+      {
+        geometry: metrics,
+        ...form,
+      },
+      config,
+    );
+  }, [metrics, form, config]);
 
   async function parseStepViaApi(file: File) {
     const body = new FormData();
@@ -85,7 +114,6 @@ export function QuoteApp() {
       }
       return { metrics: data.metrics, positions: pos, normals: nrm };
     }
-    // Fallback: re-parse returned STL
     if (data.stlBase64) {
       const bin = atob(data.stlBase64);
       const bytes = new Uint8Array(bin.length);
@@ -111,6 +139,7 @@ export function QuoteApp() {
           throw new Error("STEP 文件为空或无法解析（无有效实体）");
         }
         setFileName(file.name);
+        setModelFile(file);
         setMetrics(parsed.metrics);
         setPositions(parsed.positions);
         setNormals(parsed.normals);
@@ -120,6 +149,7 @@ export function QuoteApp() {
           throw new Error("文件为空或无法解析（无有效网格）");
         }
         setFileName(file.name);
+        setModelFile(file);
         setMetrics(parsed.metrics);
         setPositions(parsed.positions);
         setNormals(parsed.normals);
@@ -130,6 +160,7 @@ export function QuoteApp() {
       setPositions(null);
       setNormals(null);
       setFileName(null);
+      setModelFile(null);
     } finally {
       setBusy(false);
     }
@@ -144,7 +175,8 @@ export function QuoteApp() {
         </h1>
         <p className="mt-2 max-w-2xl text-slate-600">
           本地解析 STL，或服务端转换 STEP → 估算去除量与机时 → 按工时或按件给出人民币报价明细。
-          估算值为近似启发式，仅供参考。可另附 PDF 图纸，暂不自动读公差。
+          支持加急/标准/经济交期。估算值为近似启发式，仅供参考。
+          {!configReady && " · 正在同步服务端费率…"}
         </p>
       </header>
 
@@ -157,7 +189,11 @@ export function QuoteApp() {
             </p>
           )}
           {positions && normals && (
-            <StlViewer positions={positions} normals={normals} className="h-80 w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-900" />
+            <StlViewer
+              positions={positions}
+              normals={normals}
+              className="h-80 w-full overflow-hidden rounded-2xl border border-slate-800 bg-slate-900"
+            />
           )}
           {metrics && <GeometryPanel metrics={metrics} />}
         </section>
@@ -166,14 +202,25 @@ export function QuoteApp() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold text-slate-900">报价参数</h2>
             <p className="mt-1 text-sm text-slate-500">
-              修改参数后报价卡片实时更新
+              修改参数后报价卡片实时更新（费率来自服务端配置）
             </p>
             <div className="mt-4">
-              <QuoteForm value={form} onChange={setForm} />
+              <QuoteForm value={form} onChange={setForm} config={config} />
             </div>
           </div>
           {quote ? (
-            <QuoteCard quote={quote} />
+            <>
+              <QuoteCard quote={quote} />
+              {metrics && (
+                <InquiryForm
+                  form={form}
+                  metrics={metrics}
+                  fileName={fileName}
+                  modelFile={modelFile}
+                  quote={quote}
+                />
+              )}
+            </>
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
               上传 STL / STEP 后即可查看实时报价明细

@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { FrontShell } from "@/components/FrontShell";
 
 const QuoteApp = dynamic(
   () => import("@/components/QuoteApp").then((m) => m.QuoteApp),
@@ -15,5 +16,9 @@ const QuoteApp = dynamic(
 );
 
 export default function HomePage() {
-  return <QuoteApp />;
+  return (
+    <FrontShell>
+      <QuoteApp />
+    </FrontShell>
+  );
 }

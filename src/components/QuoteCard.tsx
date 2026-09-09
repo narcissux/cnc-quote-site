@@ -9,14 +9,22 @@ function yuan(n: number): string {
   })}`;
 }
 
+const LEAD_TIER_ZH: Record<string, string> = {
+  rush: "加急",
+  standard: "标准",
+  economy: "经济",
+};
+
 export function QuoteCard({ quote }: { quote: QuoteResult }) {
   const band = 100 - quote.confidencePct;
+  const lineSum = quote.lines.reduce((s, l) => s + l.amountCny, 0);
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-sm text-slate-500">
-            {quote.mode === "hourly" ? "工时报价" : "按件报价"} · 人民币
+            {quote.mode === "hourly" ? "工时报价" : "按件报价"} · 人民币 ·{" "}
+            {LEAD_TIER_ZH[quote.leadTier] || quote.leadTier}交期
           </div>
           <div className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
             {yuan(quote.totalPriceCny)}
@@ -48,6 +56,10 @@ export function QuoteCard({ quote }: { quote: QuoteResult }) {
           </li>
         ))}
       </ul>
+      <div className="mt-2 flex justify-between border-t border-slate-100 pt-2 text-sm font-semibold">
+        <span>合计（五项加总）</span>
+        <span>{yuan(lineSum)}</span>
+      </div>
 
       <div className="mt-4 space-y-1 border-t border-slate-100 pt-3">
         {quote.notes.map((n, i) => (

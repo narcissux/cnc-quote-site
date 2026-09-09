@@ -1,0 +1,12 @@
+{
+  "name": "后轴样例",
+  "source": "verify-cnc/part.stl",
+  "metrics": {
+    "lengthMm": 22,
+    "widthMm": 21.993162155151367,
+    "heightMm": 107.5,
+    "volumeMm3": 28895.139937872922,
+    "surfaceAreaMm2": 7441.230653007185,
+    "triangleCount": 18090
+  }
+}
