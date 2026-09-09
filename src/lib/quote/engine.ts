@@ -10,7 +10,8 @@
  * Billing:
  *   setupOrProgramming = hourly ? (programmingMinutes/60)×rate : programmingFeeCny
  *   runHoursPerPc = max((T_rough+T_finish+T_clamp+T_inspect)/60, minRunHoursPerPc) × tolFactor
- *   total = material×qty + run×qty×rate + setup + finish×qty + lead + minOrderTopUp
+ *   billableHours = round2(runHoursPerPc × qty); machineCost = billableHours × rate
+ *   total = material×qty + machineCost + setup + finish×qty + lead + minOrderTopUp
  */
 
 import { DEFAULT_QUOTE_CONFIG } from "./config";
@@ -224,7 +225,8 @@ export function computeQuote(
   const tier = cfg.leadTiers[leadTier] ?? cfg.leadTiers.standard;
 
   const tb = estimateTimeBreakdown({ ...input, quantity: qty }, cfg);
-  const billableHours = tb.runHoursPerPc * qty;
+  // Round hours first so display billableHours × rate matches machine.amountCny.
+  const billableHours = round2(tb.runHoursPerPc * qty);
   const rate = mat.hourlyRateCny * cfg.machineRateMultiplier[input.machine];
 
   // Mode fork: hourly bills programming as time×rate; per_piece as flat fee.
@@ -290,8 +292,8 @@ export function computeQuote(
       amountCny: round2(machineCost),
       formula:
         input.mode === "hourly"
-          ? `${round2(billableHours)} h × ¥${round0(rate)}/h（开粗 ${round2(tb.roughMin)} + 精修 ${round2(tb.finishMin)} + 装夹 ${round2(tb.clampMin)} + 检验 ${round2(tb.inspectMin)} 分/件）`
-          : `${round2(tb.runHoursPerPc)} h/件 × ${qty} × ¥${round0(rate)}/h`,
+          ? `${billableHours} h × ¥${round0(rate)}/h（开粗 ${round2(tb.roughMin)} + 精修 ${round2(tb.finishMin)} + 装夹 ${round2(tb.clampMin)} + 检验 ${round2(tb.inspectMin)} 分/件）`
+          : `${billableHours} h × ¥${round0(rate)}/h（${round4(tb.runHoursPerPc)} h/件 × ${qty}）`,
     },
     {
       id: "programming",
@@ -346,8 +348,8 @@ export function computeQuote(
     leadTier,
     confidencePct,
     cutTimeMin: round2(tb.roughMin + tb.finishMin),
-    machineHours: round2(billableHours),
-    billableHours: round2(billableHours),
+    machineHours: billableHours,
+    billableHours: billableHours,
     roughMin: round2(tb.roughMin),
     finishMin: round2(tb.finishMin),
     clampMin: round2(tb.clampMin),

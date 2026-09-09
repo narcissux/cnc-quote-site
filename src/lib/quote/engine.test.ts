@@ -163,6 +163,51 @@ describe("computeQuote hourly", () => {
   });
 });
 
+describe("machine hours display vs amount", () => {
+  it("billableHours × rate equals machine line amount (same round baseline)", () => {
+    const q = computeQuote(
+      baseInput({
+        geometry: aluRrtDra002,
+        materialId: "Al6061",
+        quantity: 1,
+        tolerance: "precision",
+        finish: "anodize",
+        machine: "3axis",
+        mode: "per_piece",
+      }),
+    );
+    const machine = q.lines.find((l) => l.id === "machine")!;
+    const rate =
+      DEFAULT_QUOTE_CONFIG.materials.Al6061.hourlyRateCny *
+      DEFAULT_QUOTE_CONFIG.machineRateMultiplier["3axis"];
+    // Display hours × rate must match line amount (within 0.01 after shared round2).
+    const fromDisplay = Math.round(q.billableHours * rate * 100) / 100;
+    expect(fromDisplay).toBe(machine.amountCny);
+    expect(q.machineHours).toBe(q.billableHours);
+    expect(Math.abs(q.billableHours * rate - machine.amountCny)).toBeLessThanOrEqual(0.01);
+  });
+
+  it("holds for qty>1 hourly too", () => {
+    const q = computeQuote(
+      baseInput({
+        geometry: aluRrtDra002,
+        materialId: "Al6061",
+        quantity: 3,
+        tolerance: "precision",
+        finish: "anodize",
+        machine: "3axis",
+        mode: "hourly",
+      }),
+    );
+    const machine = q.lines.find((l) => l.id === "machine")!;
+    const rate =
+      DEFAULT_QUOTE_CONFIG.materials.Al6061.hourlyRateCny *
+      DEFAULT_QUOTE_CONFIG.machineRateMultiplier["3axis"];
+    const fromDisplay = Math.round(q.billableHours * rate * 100) / 100;
+    expect(fromDisplay).toBe(machine.amountCny);
+  });
+});
+
 describe("computeQuote per_piece", () => {
   it("amortizes programming into unit price (qty1 > qty10)", () => {
     const q1 = computeQuote(
